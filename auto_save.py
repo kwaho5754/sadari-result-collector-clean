@@ -8,13 +8,16 @@ from oauth2client.service_account import ServiceAccountCredentials
 # ✅ 환경변수에서 JSON 문자열 불러오기
 raw_json = os.environ.get("SERVICE_ACCOUNT_JSON_RAW")
 if not raw_json:
-    raise FileNotFoundError("🔐 service_account.json 파일이 없습니다. Render에 환경변수로 JSON을 넣고 실행하세요.")
+    raise FileNotFoundError("🔐 service_account.json JSON이 환경변수에 없습니다.")
 
-# ✅ 문자열을 실제 JSON 파일로 저장
+# ✅ 줄바꿈 문자(\n)를 실제 줄바꿈으로 변환
+formatted_json = raw_json.replace("\\n", "\n")
+
+# ✅ JSON 파일로 저장
 with open("service_account.json", "w") as f:
-    f.write(raw_json)
+    f.write(formatted_json)
 
-# ✅ 시트 인증
+# ✅ 인증
 scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
 credentials = ServiceAccountCredentials.from_json_keyfile_name('service_account.json', scope)
 gc = gspread.authorize(credentials)
