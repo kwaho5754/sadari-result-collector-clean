@@ -1,59 +1,39 @@
-import os
 import json
 import gspread
+from google.oauth2.service_account import Credentials
 import requests
 from datetime import datetime
-from oauth2client.service_account import ServiceAccountCredentials
 
-# ✅ 환경변수에서 JSON 문자열 불러오기
-raw_json = os.environ.get("SERVICE_ACCOUNT_JSON_RAW")
-if not raw_json:
-    raise Exception("SERVICE_ACCOUNT_JSON_RAW 환경변수가 없습니다.")
+# ✅ 환경변수 없이 JSON 파일 직접 불러오기
+with open("service_account.json", "r", encoding="utf-8") as f:
+    service_account_info = json.load(f)
 
-# ✅ 줄바꿈 복원
-formatted_json = raw_json.replace("\\n", "\n")
-
-# ✅ JSON 유효성 검사
-try:
-    json.loads(formatted_json)
-except json.JSONDecodeError as e:
-    raise Exception("환경변수 JSON 형식 오류: " + str(e))
-
-# ✅ service_account.json로 저장
-with open("service_account.json", "w") as f:
-    f.write(formatted_json)
-
-# ✅ 인증 처리
-scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-credentials = ServiceAccountCredentials.from_json_keyfile_name('service_account.json', scope)
+credentials = Credentials.from_service_account_info(service_account_info)
 gc = gspread.authorize(credentials)
 
-# ✅ 시트 연결
-spreadsheet_id = '1j72Y36aXDYTxsJId92DCnQLouwRgHL2BBOqI9UUDQzE'
-sheet = gc.open_by_key(spreadsheet_id).worksheet('예측결과')
+# 🔧 구글 시트 정보
+SPREADSHEET_KEY = "1HXRIbAOEotWONqG3FVT9iub9oWNANs7orkUKjmpqfn4"
+worksheet = gc.open_by_key(SPREADSHEET_KEY).worksheet("예측결과")
 
-# ✅ 실시간 데이터 요청
-url = 'https://ntry.com/data/json/games/power_ladder/recent_result.json'
-response = requests.get(url)
-data = response.json()
+# 🔄 실시간 결과 불러오기
+url = "https://ntry.com/data/json/games/power_ladder/recent_result.json"
+res = requests.get(url)
+data = res.json()
 
-# ✅ 최신 데이터 선택
-if isinstance(data, list) and len(data) > 0:
-    result = data[0]
-else:
-    raise ValueError("데이터 형식이 올바르지 않습니다.")
+# 📌 필요한 데이터 추출
+date = data["date"]
+round_num = data["round"]
+ladder_result = data["result"]  # 예: '좌사홀'
 
-# ✅ 데이터 파싱
-today = result['reg_date']
-round_num = int(result['date_round'])
-start_point = result['start_point']
-line_count = int(result['line_count'])
-odd_even = result['odd_even']
+# 📅 시간 정보
+now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-# ✅ 중복 확인 후 저장
-existing_rounds = sheet.col_values(2)
-if str(round_num) in existing_rounds:
-    print(f"{round_num}회차는 이미 있음. 저장 건너뜀")
-else:
-    sheet.append_row([today, round_num, start_point, line_count, odd_even])
+# ✅ 시트에 중복 확인 후 저장
+values = worksheet.get_all_values()
+existing_rounds = [row[1] for row in values[1:]]  # 헤더 제외
+
+if str(round_num) not in existing_rounds:
+    worksheet.append_row([now, str(round_num), date, ladder_result])
     print(f"{round_num}회차 저장 완료")
+else:
+    print(f"{round_num}회차는 이미 저장됨")
