@@ -1,0 +1,11 @@
+Flask
+flask_cors
+gunicorn
+gspread
+oauth2client
+pandas
+scikit-learn
+xgboost
+catboost
+lightgbm==4.2.0
+requests
