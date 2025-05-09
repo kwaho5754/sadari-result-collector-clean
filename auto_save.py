@@ -1,12 +1,15 @@
+import os
 import json
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import requests
 from datetime import datetime
 
-# ✅ 구글 시트 설정
+# ✅ 환경변수에서 service_account.json 정보 불러오기
+service_account_info = json.loads(os.environ["SERVICE_ACCOUNT_JSON"])
+
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-credentials = ServiceAccountCredentials.from_json_keyfile_name("service_account.json", scope)
+credentials = ServiceAccountCredentials.from_json_keyfile_dict(service_account_info, scope)
 gc = gspread.authorize(credentials)
 
 sheet_url = "https://docs.google.com/spreadsheets/d/1HXRIbAOEotWONqG3FVT9iub9oWNANs7orkUKjmpqfn4/edit#gid=0"
