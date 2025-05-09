@@ -5,9 +5,12 @@ import gspread
 from datetime import datetime
 from google.oauth2 import service_account
 
+# ✅ 정확한 스코프 추가
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+
 # ✅ 환경변수에서 인증 정보 불러오기
 service_account_info = json.loads(os.environ["SERVICE_ACCOUNT_JSON"])
-creds = service_account.Credentials.from_service_account_info(service_account_info)
+creds = service_account.Credentials.from_service_account_info(service_account_info, scopes=SCOPES)
 client = gspread.authorize(creds)
 
 # ✅ 시트 열기
