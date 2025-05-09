@@ -1,31 +1,27 @@
 import os
 import json
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
-import requests
-from datetime import datetime
+from google.oauth2.service_account import Credentials
 
-# ✅ 환경변수에서 service_account.json 정보 불러오기
-service_account_info = json.loads(os.environ["SERVICE_ACCOUNT_JSON"])
+# 환경변수에서 서비스 계정 JSON 문자열 불러오기
+service_account_json = os.environ["SERVICE_ACCOUNT_JSON"]
+service_account_info = json.loads(service_account_json)
 
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-credentials = ServiceAccountCredentials.from_json_keyfile_dict(service_account_info, scope)
+# private_key 줄바꿈 복원
+service_account_info["private_key"] = service_account_info["private_key"].replace("\\n", "\n")
+
+# 인증 및 구글 시트 접근
+scope = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
+
+credentials = Credentials.from_service_account_info(service_account_info, scopes=scope)
 gc = gspread.authorize(credentials)
 
-sheet_url = "https://docs.google.com/spreadsheets/d/1HXRIbAOEotWONqG3FVT9iub9oWNANs7orkUKjmpqfn4/edit#gid=0"
-sheet = gc.open_by_url(sheet_url).worksheet("예측결과")
+# 주어진 Google Sheets 문서 ID와 시트 이름
+sheet = gc.open_by_key("1j72Y36aXDYTxsJId92DCnQLouwRgHL2BBOqI9UUDQzE")
+worksheet = sheet.worksheet("예측결과")
 
-# ✅ 실시간 JSON 데이터 요청
-url = "https://ntry.com/data/json/games/power_ladder/recent_result.json"
-response = requests.get(url)
-data = response.json()
-
-# ✅ 회차 정보 추출
-round_number = data['round']
-date = datetime.now().strftime("%Y-%m-%d")
-result = data['result']
-
-# ✅ 결과 시트에 추가
-sheet.append_row([date, round_number, result])
-
-print(f"{date} {round_number}회차 저장 완료")
+# 테스트 출력
+print("✅ 시트 열기 성공:", worksheet.title)
