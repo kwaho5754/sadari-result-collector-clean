@@ -10,7 +10,7 @@ service_account_info = json.loads(os.environ["SERVICE_ACCOUNT_JSON"])
 creds = service_account.Credentials.from_service_account_info(service_account_info, scopes=SCOPES)
 client = gspread.authorize(creds)
 
-SPREADSHEET_ID = "1HXRIbAOEotWONqG3FVT9iub9oWNANs7orkUKjmpqfn4"
+SPREADSHEET_ID = "1j72Y36aXDYTxsJId92DCnQLouwRgHL2BBOqI9UUDQzE" 
 SHEET_NAME = "예측결과"
 sheet = client.open_by_key(SPREADSHEET_ID)
 worksheet = sheet.worksheet(SHEET_NAME)
