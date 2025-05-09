@@ -1,30 +1,28 @@
 import json
 import gspread
-from google.oauth2.service_account import Credentials
+from oauth2client.service_account import ServiceAccountCredentials
 import requests
 from datetime import datetime
 
-# ✅ service_account.json 직접 로딩
-with open("service_account.json", "r", encoding="utf-8") as f:
-    service_account_info = json.load(f)
-
-credentials = Credentials.from_service_account_info(
-    service_account_info,
-    scopes=["https://www.googleapis.com/auth/spreadsheets"]
-)
-
+# ✅ 구글 시트 설정
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+credentials = ServiceAccountCredentials.from_json_keyfile_name("service_account.json", scope)
 gc = gspread.authorize(credentials)
 
-SPREADSHEET_ID = '1HXRIbAOEotWONqG3FVT9iub9oWNANs7orkUKjmpqfn4'
-worksheet = gc.open_by_key(SPREADSHEET_ID).worksheet("예측결과")
+sheet_url = "https://docs.google.com/spreadsheets/d/1HXRIbAOEotWONqG3FVT9iub9oWNANs7orkUKjmpqfn4/edit#gid=0"
+sheet = gc.open_by_url(sheet_url).worksheet("예측결과")
 
+# ✅ 실시간 JSON 데이터 요청
 url = "https://ntry.com/data/json/games/power_ladder/recent_result.json"
-res = requests.get(url)
-data = res.json()
+response = requests.get(url)
+data = response.json()
 
-today = datetime.today().strftime("%Y-%m-%d")
-latest = [d for d in data if d['date'] == today][-1]
+# ✅ 회차 정보 추출
+round_number = data['round']
+date = datetime.now().strftime("%Y-%m-%d")
+result = data['result']
 
-row = [latest['date'], latest['round'], latest['position'], latest['ladder_count'], latest['odd_even']]
-worksheet.append_row(row)
-print("✅ 저장 완료:", row)
+# ✅ 결과 시트에 추가
+sheet.append_row([date, round_number, result])
+
+print(f"{date} {round_number}회차 저장 완료")
