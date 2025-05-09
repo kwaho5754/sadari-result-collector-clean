@@ -17,20 +17,20 @@ worksheet = sheet.worksheet(SHEET_NAME)
 
 print("✅ 시트 열기 성공: 예측결과")
 
-# ✅ 데이터 요청
+# ✅ 응답 데이터 불러오기
 url = "https://ntry.com/data/json/games/power_ladder/recent_result.json"
 response = requests.get(url)
 data = response.json()
 
-# ✅ 리스트일 경우 첫 항목 사용
+# ✅ 가장 최근 결과 1개 사용
 result = data[0]
 
-# ✅ 회차 정보 추출
-round_num = result["round"]
-date = result["date"]
-left_right = result["leftRight"]
-line = result["line"]
-odd_even = result["oddEven"]
+# ✅ 필드 이름에 맞게 수정
+round_num = result["date_round"]
+date = result["reg_date"]
+left_right = result["start_point"]
+line = result["line_count"]
+odd_even = result["odd_even"]
 
 # ✅ 중복 저장 방지
 existing = worksheet.get_all_records()
