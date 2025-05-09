@@ -1,39 +1,40 @@
-import os
 import json
 import requests
 import gspread
-from google.oauth2.service_account import Credentials
 from datetime import datetime
+from google.oauth2 import service_account
 
-# ⬇ 환경변수에서 서비스 계정 JSON을 불러와 인증
-service_account_info = json.loads(os.environ["SERVICE_ACCOUNT_JSON"])
-scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-credentials = Credentials.from_service_account_info(service_account_info, scopes=scopes)
-gc = gspread.authorize(credentials)
+# ✅ Google Sheets 인증 (JSON 파일 직접 사용)
+SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+creds = service_account.Credentials.from_service_account_file(
+    "service_account.json", scopes=SCOPES
+)
+client = gspread.authorize(creds)
 
-# ⬇ 시트 열기
-spreadsheet_url = "https://docs.google.com/spreadsheets/d/1j72Y36aXDYTxsJId92DCnQLouwRgHL2BBOqI9UUDQzE/edit?usp=sharing"
-doc = gc.open_by_url(spreadsheet_url)
-worksheet = doc.worksheet("예측결과")
+# ✅ 시트 열기
+SPREADSHEET_ID = "1HXRIbAOEotWONqG3FVT9iub9oWNANs7orkUKjmpqfn4"
+SHEET_NAME = "예측결과"
+sheet = client.open_by_key(SPREADSHEET_ID)
+worksheet = sheet.worksheet(SHEET_NAME)
 
 print("✅ 시트 열기 성공: 예측결과")
 
-# ⬇ 사다리 결과 JSON에서 최근 회차 가져오기
+# ✅ 최근 회차 결과 가져오기
 url = "https://ntry.com/data/json/games/power_ladder/recent_result.json"
 response = requests.get(url)
 data = response.json()
 
-round_id = data["roundId"]
+# ✅ 회차 정보 추출
+round_num = data["round"]
+date = data["date"]
 left_right = data["leftRight"]
 line = data["line"]
 odd_even = data["oddEven"]
-time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-# ⬇ 이미 저장된 회차인지 확인
-existing_rounds = worksheet.col_values(1)
-if str(round_id) in existing_rounds:
-    print(f"⚠ 이미 저장된 회차입니다: {round_id}")
+# ✅ 중복 저장 방지
+existing = worksheet.get_all_records()
+if any(str(r["회차"]) == str(round_num) and r["날짜"] == date for r in existing):
+    print(f"⚠️ 이미 저장된 회차: {date} {round_num}회차")
 else:
-    # ⬇ 시트에 저장
-    worksheet.append_row([round_id, left_right, line, odd_even, time])
-    print(f"📥 저장 완료: 회차 {round_id} / 값: {left_right}, {line}, {odd_even}")
+    worksheet.append_row([date, round_num, left_right, line, odd_even])
+    print(f"✅ 저장 완료: {date} {round_num}회차 → {left_right}, {line}, {odd_even}")
