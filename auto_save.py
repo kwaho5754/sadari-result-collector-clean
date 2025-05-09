@@ -1,14 +1,13 @@
 import json
+import os
 import requests
 import gspread
 from datetime import datetime
 from google.oauth2 import service_account
 
-# ✅ Google Sheets 인증 (JSON 파일 직접 사용)
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-creds = service_account.Credentials.from_service_account_file(
-    "service_account.json", scopes=SCOPES
-)
+# ✅ 환경변수에서 인증 정보 불러오기
+service_account_info = json.loads(os.environ["SERVICE_ACCOUNT_JSON"])
+creds = service_account.Credentials.from_service_account_info(service_account_info)
 client = gspread.authorize(creds)
 
 # ✅ 시트 열기
