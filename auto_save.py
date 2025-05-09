@@ -1,39 +1,39 @@
-import json
 import gspread
-from google.oauth2.service_account import Credentials
+from oauth2client.service_account import ServiceAccountCredentials
 import requests
+import json
 from datetime import datetime
 
-# ✅ 환경변수 없이 JSON 파일 직접 불러오기
-with open("service_account.json", "r", encoding="utf-8") as f:
-    service_account_info = json.load(f)
-
-credentials = Credentials.from_service_account_info(service_account_info)
+# 🔑 Google Sheets API 인증 (환경변수 제거, 로컬 파일 직접 사용)
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+credentials = ServiceAccountCredentials.from_json_keyfile_name("service_account.json", scope)
 gc = gspread.authorize(credentials)
 
-# 🔧 구글 시트 정보
-SPREADSHEET_KEY = "1HXRIbAOEotWONqG3FVT9iub9oWNANs7orkUKjmpqfn4"
-worksheet = gc.open_by_key(SPREADSHEET_KEY).worksheet("예측결과")
+# 🔢 시트 정보
+spreadsheet = gc.open_by_key("1HXRIbAOEotWONqG3FVT9iub9oWNANs7orkUKjmpqfn4")
+worksheet = spreadsheet.worksheet("예측결과")
 
-# 🔄 실시간 결과 불러오기
+# 🌐 실시간 JSON 데이터 요청
 url = "https://ntry.com/data/json/games/power_ladder/recent_result.json"
 res = requests.get(url)
 data = res.json()
 
-# 📌 필요한 데이터 추출
-date = data["date"]
-round_num = data["round"]
-ladder_result = data["result"]  # 예: '좌사홀'
+# 📦 데이터 파싱
+today = datetime.today().strftime("%Y-%m-%d")
+latest = data["list"][0]
+round_ = latest["round"]
+left_right = latest["leftRight"]
+line = latest["line"]
+odd_even = latest["oddEven"]
 
-# 📅 시간 정보
-now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-# ✅ 시트에 중복 확인 후 저장
+# 🧾 현재 시트에 같은 회차 있는지 확인
 values = worksheet.get_all_values()
-existing_rounds = [row[1] for row in values[1:]]  # 헤더 제외
-
-if str(round_num) not in existing_rounds:
-    worksheet.append_row([now, str(round_num), date, ladder_result])
-    print(f"{round_num}회차 저장 완료")
+header, rows = values[0], values[1:]
+existing_rounds = [row[1] for row in rows if len(row) >= 2]
+if round_ in existing_rounds:
+    print(f"{round_}회차는 이미 저장됨")
 else:
-    print(f"{round_num}회차는 이미 저장됨")
+    # 시트에 추가
+    new_row = [today, round_, left_right, line, odd_even]
+    worksheet.append_row(new_row)
+    print(f"{round_}회차 저장 완료")
