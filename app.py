@@ -1,21 +1,24 @@
 from flask import Flask, jsonify
 import json
+import os
 import gspread
 from google.oauth2.service_account import Credentials
 
 app = Flask(__name__)
 
-# 환경변수 또는 파일에서 서비스 계정 불러오기
-with open("service_account.json", "r", encoding="utf-8") as f:
-    service_account_info = json.load(f)
+# ✅ 환경변수에서 JSON 문자열 불러오기
+service_account_json = os.environ["SERVICE_ACCOUNT_JSON"]
+service_account_info = json.loads(service_account_json)
+service_account_info["private_key"] = service_account_info["private_key"].replace("\\n", "\n")
 
+# ✅ 인증 처리
 credentials = Credentials.from_service_account_info(
     service_account_info,
     scopes=["https://www.googleapis.com/auth/spreadsheets"]
 )
-
 gc = gspread.authorize(credentials)
 
+# ✅ 시트 연결
 SPREADSHEET_ID = '1HXRIbAOEotWONqG3FVT9iub9oWNANs7orkUKjmpqfn4'
 worksheet = gc.open_by_key(SPREADSHEET_ID).worksheet("예측결과")
 
