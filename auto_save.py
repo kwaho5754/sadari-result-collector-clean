@@ -5,15 +5,11 @@ import gspread
 from datetime import datetime
 from google.oauth2 import service_account
 
-# ✅ 정확한 스코프 추가
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-
-# ✅ 환경변수에서 인증 정보 불러오기
 service_account_info = json.loads(os.environ["SERVICE_ACCOUNT_JSON"])
 creds = service_account.Credentials.from_service_account_info(service_account_info, scopes=SCOPES)
 client = gspread.authorize(creds)
 
-# ✅ 시트 열기
 SPREADSHEET_ID = "1HXRIbAOEotWONqG3FVT9iub9oWNANs7orkUKjmpqfn4"
 SHEET_NAME = "예측결과"
 sheet = client.open_by_key(SPREADSHEET_ID)
@@ -21,17 +17,20 @@ worksheet = sheet.worksheet(SHEET_NAME)
 
 print("✅ 시트 열기 성공: 예측결과")
 
-# ✅ 최근 회차 결과 가져오기
+# ✅ 데이터 요청
 url = "https://ntry.com/data/json/games/power_ladder/recent_result.json"
 response = requests.get(url)
 data = response.json()
 
+# ✅ 리스트일 경우 첫 항목 사용
+result = data[0]
+
 # ✅ 회차 정보 추출
-round_num = data["round"]
-date = data["date"]
-left_right = data["leftRight"]
-line = data["line"]
-odd_even = data["oddEven"]
+round_num = result["round"]
+date = result["date"]
+left_right = result["leftRight"]
+line = result["line"]
+odd_even = result["oddEven"]
 
 # ✅ 중복 저장 방지
 existing = worksheet.get_all_records()
