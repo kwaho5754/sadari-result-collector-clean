@@ -1,42 +1,48 @@
+import os
+import json
+import requests
+import datetime
 import gspread
 from google.oauth2.service_account import Credentials
-import requests
-from datetime import datetime
 
-# 구글 시트 인증
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-SERVICE_ACCOUNT_FILE = "service_account.json"
-creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-client = gspread.authorize(creds)
+# --- 1. 구글 시트 인증 ---
+SERVICE_ACCOUNT_JSON = os.environ.get("SERVICE_ACCOUNT_JSON")
+if not SERVICE_ACCOUNT_JSON:
+    raise Exception("환경변수 'SERVICE_ACCOUNT_JSON'이 설정되지 않았습니다.")
 
-# 시트 정보
-SPREADSHEET_ID = "1j72Y36aXDYTxsJId92DCnQLouwRgHL2BBOqI9UUDQzE"
+service_account_info = json.loads(SERVICE_ACCOUNT_JSON)
+scopes = ['https://www.googleapis.com/auth/spreadsheets']
+credentials = Credentials.from_service_account_info(service_account_info, scopes=scopes)
+gc = gspread.authorize(credentials)
+
+# --- 2. 시트 정보 설정 ---
+SPREADSHEET_ID = "1HXRIbAOEotWONqG3FVT9iub9oWNANs7orkUKjmpqfn4"
 SHEET_NAME = "예측결과"
-sheet = client.open_by_key(SPREADSHEET_ID)
-worksheet = sheet.worksheet(SHEET_NAME)
+worksheet = gc.open_by_key(SPREADSHEET_ID).worksheet(SHEET_NAME)
 
-# 데이터 가져오기
-DATA_URL = "https://ntry.com/data/json/games/power_ladder/recent_result.json"
-response = requests.get(DATA_URL)
+# --- 3. 최근 회차 데이터 가져오기 ---
+url = "https://ntry.com/data/json/games/power_ladder/recent_result.json"
+response = requests.get(url)
 data = response.json()
 
-# 최근 회차 데이터
-latest = data[-1]
-now = latest['reg_date']
-new_round = latest['date_round']
-a = latest['start_point']
-b = int(latest['line_count'])
-c = latest['odd_even']
+recent = data['list'][0]
+date = recent['date']
+round_number = recent['round']
+position = recent['position']        # 좌/우
+ladder_count = recent['ladderCount'] # 3/4
+oddeven = recent['oddEven']          # 홀/짝
 
-# 시트에 이미 저장된 마지막 회차 확인
-existing = worksheet.get_all_records()
-saved_rounds = [int(row["회차"]) for row in existing if str(row["날짜"]) == str(now)]
-already_exists = new_round in saved_rounds
+# --- 4. 시트에서 이미 저장된 회차인지 확인 ---
+existing_data = worksheet.get_all_records()
+is_already_saved = any(
+    str(row.get('date')) == str(date) and str(row.get('round')) == str(round_number)
+    for row in existing_data
+)
 
-# 저장되지 않은 경우만 추가
-if not already_exists:
-    row = [now, new_round, a, b, c]
-    worksheet.append_row(row)
-    print(f"✅ 저장 완료: {row}")
+if is_already_saved:
+    print(f"✅ 이미 저장된 회차입니다: {date} - {round_number}회차")
 else:
-    print(f"⚠️ 이미 저장된 회차: {new_round}")
+    # --- 5. 새 데이터 추가 ---
+    new_row = [date, round_number, position, ladder_count, oddeven]
+    worksheet.append_row(new_row)
+    print(f"✅ 저장 완료: {new_row}")
