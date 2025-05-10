@@ -1,18 +1,36 @@
 from flask import Flask, jsonify
-from predict import run_prediction
+import json
+import os
+import gspread
+from google.oauth2.service_account import Credentials
 
 app = Flask(__name__)
 
-@app.route("/predict", methods=["GET"])
-def predict_route():
-    predictions = run_prediction()
-    return jsonify({
-        "예측 회차": predictions["round"],
-        "예측값1": predictions["top3"][0],
-        "예측값2": predictions["top3"][1],
-        "예측값3": predictions["top3"][2]
-    })
+# ✅ 환경변수에서 JSON 문자열 불러오기
+service_account_json = os.environ["SERVICE_ACCOUNT_JSON"]
+service_account_info = json.loads(service_account_json)
+service_account_info["private_key"] = service_account_info["private_key"].replace("\\n", "\n")
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
-# force update
+# ✅ 인증 처리
+credentials = Credentials.from_service_account_info(
+    service_account_info,
+    scopes=["https://www.googleapis.com/auth/spreadsheets"]
+)
+gc = gspread.authorize(credentials)
+
+# ✅ 시트 연결
+SPREADSHEET_ID = '1HXRIbAOetWONqG3FVT9iub9oWNANs7orkUKjmpqfn4'
+worksheet = gc.open_by_key(SPREADSHEET_ID).worksheet("예측결과")
+
+# ✅ 예측 경로 (에러 처리 포함)
+@app.route('/predict')
+def predict():
+    try:
+        values = worksheet.get_all_values()
+        latest_row = values[-1] if values else []
+        return jsonify({"latest_prediction": latest_row})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=10000)
