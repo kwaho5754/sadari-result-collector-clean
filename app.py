@@ -3,17 +3,12 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 import json
 import random
 import os
 
 app = Flask(__name__)
-
-# 시트 설정
-SPREADSHEET_ID = '1j72Y36aXDYTxsJId92DCnQLouwRgHL2BBOqI9UUDQzE'
-SHEET_NAME = '예측결과'
-JSON_KEY_FILE = 'service_account.json'
 
 # 대칭 규칙 정의
 def mirror(combo):
@@ -30,12 +25,21 @@ def make_combo(row):
     odd = '홀' if row['홀짝'] == 'ODD' else '짝'
     return f"{lr}{line}{odd}"
 
-# 시트에서 데이터 불러오기
+# Google Sheets에서 데이터 불러오기
 def load_sheet_data():
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    creds = ServiceAccountCredentials.from_json_keyfile_name(JSON_KEY_FILE, scope)
-    gc = gspread.authorize(creds)
+    json_key = os.environ.get("SERVICE_ACCOUNT_JSON")
+    if not json_key:
+        raise Exception("환경변수 'SERVICE_ACCOUNT_JSON'이 없습니다.")
+
+    creds_dict = json.loads(json_key)
+    scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+    credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+    gc = gspread.authorize(credentials)
+
+    SPREADSHEET_ID = "1j72Y36aXDYTxsJId92DCnQLouwRgHL2BBOqI9UUDQzE"
+    SHEET_NAME = "예측결과"
     sheet = gc.open_by_key(SPREADSHEET_ID).worksheet(SHEET_NAME)
+
     data = sheet.get_all_records()
     df = pd.DataFrame(data)
     df['조합'] = df.apply(make_combo, axis=1)
@@ -51,7 +55,7 @@ def extract_blocks(combo_list, reverse=False):
             blocks.append(block)
     return blocks
 
-# 예측값 선정 로직 (가장 적은/가장 많은/중간 조합)
+# 예측값 선정 로직 (가장 적은/많은/중간)
 def select_final_predictions(combo_list):
     counts = pd.Series(combo_list).value_counts()
     if len(counts) < 3:
@@ -78,24 +82,18 @@ def predict():
 
         combo_seq = df['조합'].tolist()
 
-        # 정방향 & 역방향 패턴블럭 추출
+        # 정방향 & 역방향 분석
         forward_blocks = extract_blocks(combo_seq, reverse=False)
         backward_blocks = extract_blocks(combo_seq, reverse=True)
 
-        # 각 방향의 마지막 조합 패턴만 추출
         forward_end = [block[-1] for block in forward_blocks]
         backward_end = [block[-1] for block in backward_blocks]
 
-        # 후보 조합 추출
         candidates = forward_end + backward_end
 
-        # 예측값 3개 추출 (중복 없이)
         top3 = select_final_predictions(candidates)
-
-        # 대칭 적용
         final_result = [mirror(combo) for combo in top3]
 
-        # 예측 회차 표시
         next_round_str = get_next_round(df)
 
         result = {
@@ -112,5 +110,5 @@ def predict():
         return jsonify({'오류': str(e)})
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))  # Render에서 환경변수 PORT 사용
+    port = int(os.environ.get('PORT', 5000))  # Render용
     app.run(host='0.0.0.0', port=port)
