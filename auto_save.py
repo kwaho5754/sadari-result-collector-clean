@@ -1,38 +1,29 @@
+import json
+import os
 import gspread
-from google.oauth2.service_account import Credentials
 from datetime import datetime
-import subprocess
+from google.oauth2.service_account import Credentials
 
-# ▶ 구글 인증 (환경변수 없이 json 직접 불러옴)
-SCOPE = ["https://www.googleapis.com/auth/spreadsheets"]
-SERVICE_ACCOUNT_FILE = "service_account.json"
-creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPE)
+# ✅ 환경변수에서 인증 JSON 불러오기
+SERVICE_ACCOUNT_JSON = os.environ['SERVICE_ACCOUNT_JSON']
+service_account_info = json.loads(SERVICE_ACCOUNT_JSON)
+creds = Credentials.from_service_account_info(service_account_info)
 client = gspread.authorize(creds)
 
-# ▶ 시트 정보
+# ✅ 시트 연결
 SPREADSHEET_ID = "1j72Y36aXDYTxsJId92DCnQLouwRgHL2BBOqI9UUDQzE"
 SHEET_NAME = "예측결과"
-sheet = client.open_by_key(SPREADSHEET_ID)
-worksheet = sheet.worksheet(SHEET_NAME)
+sheet = client.open_by_key(SPREADSHEET_ID).worksheet(SHEET_NAME)
 
-# ▶ 현재 마지막 회차 불러오기
-existing = worksheet.get_all_records()
-last_row = existing[-1] if existing else {}
-last_round = int(last_row.get("회차", 0)) if str(last_row.get("회차", "0")).isdigit() else 0
+# ✅ 마지막 회차 불러오기
+records = sheet.get_all_records()
+last_round = int(records[-1]["회차"]) if records else 0
 new_round = last_round + 1
 
-# ▶ 이전 예측값 불러오기 (중복 방지용)
-previous_prediction = last_row.get("예측값", "") if last_row else ""
+# ✅ 예측값 준비 (실제 코드는 여기에 예측 결과 삽입)
+prediction_str = "RIGHT4EVEN / LEFT3EVEN / LEFT4ODD"
+today = datetime.now().strftime("%Y-%m-%d")
+row = [today, new_round, "", "", "", prediction_str]
 
-# ▶ 예측 수행 (자동학습 포함)
-subprocess.run(["python", "predict_train.py"])
-
-# ▶ 예측값 예시 (실제로는 predict_train.py에서 반환되도록 구성 가능)
-predictions = ["RIGHT4EVEN", "LEFT3EVEN", "LEFT4ODD"]
-prediction_str = " / ".join(predictions)
-
-# ▶ 예측 결과 중복 여부 판단 후 저장
-if prediction_str != previous_prediction:
-    today = datetime.now().strftime("%Y-%m-%d")
-    row = [today, new_round, "", "", "", prediction_str]
-    worksheet.append_row(row)
+# ✅ 시트에 한 줄 저장
+sheet.append_row(row)
