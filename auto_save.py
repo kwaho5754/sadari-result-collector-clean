@@ -45,9 +45,9 @@ def save_latest_result():
             headers = worksheet.row_values(1)
             raise Exception(f"시트 1행(header)에 오류가 있습니다: {headers} → {str(e)}")
 
-        # 중복 확인
+        # ✅ 한글 열 이름에 맞춰 중복 확인
         is_duplicate = any(
-            str(row.get('date')) == str(date) and str(row.get('round')) == str(round_number)
+            str(row.get('날짜')) == str(date) and str(row.get('회차')) == str(round_number)
             for row in existing_data
         )
 
