@@ -3,32 +3,27 @@ import json
 from datetime import datetime
 import os
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+import base64
+from google.oauth2.service_account import Credentials
 
-# 설정
-SPREADSHEET_ID = '1j72Y36aXDYTxsJId92DCnQLouwRgHL2BBOqI9UUDQzE'
-SHEET_NAME = '예측결과'
-JSON_KEY_FILE = 'service_account.json'
-FAILURE_JSON = 'save_failure_case.json'
+# 인증 함수
+def get_gspread_client():
+    b64_key = os.environ.get("SERVICE_ACCOUNT_BASE64")
+    if not b64_key:
+        raise Exception("환경변수 'SERVICE_ACCOUNT_BASE64'가 없습니다.")
+    key_json = base64.b64decode(b64_key).decode("utf-8")
+    creds_dict = json.loads(key_json)
+    scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
+    credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+    return gspread.authorize(credentials)
 
-# 대조 대상 예측값 (실제로는 app.py에서 전달 or 파일로 받아옴)
-def get_recent_prediction():
-    try:
-        with open('latest_prediction.json', 'r') as f:
-            return json.load(f)
-    except:
-        return {}
-
-# 실시간 시트에서 최근 정답 조합 가져오기
+# 시트에서 실제 정답 불러오기
 def load_latest_actual():
-    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-    creds = ServiceAccountCredentials.from_json_keyfile_name(JSON_KEY_FILE, scope)
-    gc = gspread.authorize(creds)
-    sheet = gc.open_by_key(SPREADSHEET_ID).worksheet(SHEET_NAME)
+    gc = get_gspread_client()
+    sheet = gc.open_by_key("1j72Y36aXDYTxsJId92DCnQLouwRgHL2BBOqI9UUDQzE").worksheet("예측결과")
     data = sheet.get_all_records()
     df = pd.DataFrame(data)
-    
-    # 조합 생성
+
     def make_combo(row):
         lr = '좌' if row['좌우'] == 'LEFT' else '우'
         line = '삼' if row['줄수'] == 3 else '사'
@@ -38,10 +33,18 @@ def load_latest_actual():
     df['조합'] = df.apply(make_combo, axis=1)
     return df.iloc[-1]['조합']
 
-# 오답 저장
-def save_failure_case(predicted, actual):
+# 가장 최근 예측 결과 불러오기
+def get_recent_prediction():
+    try:
+        with open('latest_prediction.json', 'r') as f:
+            return json.load(f)
+    except:
+        return {}
+
+# 오답 기록
+def save_failure_case(predicted, actual, output_file='save_failure_case.json'):
     if actual in predicted:
-        return  # 정답 있음 → 오답 아님
+        return
 
     record = {
         "timestamp": str(datetime.now()),
@@ -49,15 +52,14 @@ def save_failure_case(predicted, actual):
         "actual": actual
     }
 
-    if os.path.exists(FAILURE_JSON):
-        with open(FAILURE_JSON, 'r') as f:
+    if os.path.exists(output_file):
+        with open(output_file, 'r') as f:
             data = json.load(f)
     else:
         data = []
 
     data.append(record)
-
-    with open(FAILURE_JSON, 'w') as f:
+    with open(output_file, 'w') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
 if __name__ == "__main__":
