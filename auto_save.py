@@ -1,40 +1,33 @@
-import json
-import os
-import requests
 import gspread
+from google.oauth2.service_account import Credentials
 from datetime import datetime
-from google.oauth2 import service_account
+import subprocess
 
+# 구글 인증
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-service_account_info = json.loads(os.environ["SERVICE_ACCOUNT_JSON"])
-creds = service_account.Credentials.from_service_account_info(service_account_info, scopes=SCOPES)
+SERVICE_ACCOUNT_FILE = "service_account.json"
+creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
 client = gspread.authorize(creds)
 
-SPREADSHEET_ID = "1j72Y36aXDYTxsJId92DCnQLouwRgHL2BBOqI9UUDQzE" 
+# 시트 정보
+SPREADSHEET_ID = "1j72Y36aXDYTxsJId92DCnQLouwRgHL2BB0qI9UUDQzE"
 SHEET_NAME = "예측결과"
 sheet = client.open_by_key(SPREADSHEET_ID)
 worksheet = sheet.worksheet(SHEET_NAME)
 
-print("✅ 시트 열기 성공: 예측결과")
+# 현재 시트 마지막 회차 읽기
+existing = worksheet.get_all_records()
+last_round = existing[-1]["회차"] if existing else 0
+new_round = int(last_round) + 1
 
-# ✅ API 요청
-url = "https://ntry.com/data/json/games/power_ladder/recent_result.json"
-response = requests.get(url)
-data = response.json()
+# 예측값 (예시)
+predictions = ["RIGHT4EVEN", "LEFT3EVEN", "LEFT4ODD"]
+prediction_str = " / ".join(predictions)
 
-# ✅ 최신 결과 사용
-result = data[0]
-round_num = result["date_round"]
-date = result["reg_date"]
-left_right = result["start_point"]
-line = result["line_count"]
-odd_even = result["odd_even"]
+# 저장
+now = datetime.now().strftime("%Y-%m-%d")
+row = [now, new_round, "", "", "", prediction_str]
+worksheet.append_row(row)
 
-# ✅ 중복 방지 (헤더 지정)
-expected_headers = ["날짜", "회차", "좌우", "줄수", "홀짝"]
-existing = worksheet.get_all_records(expected_headers=expected_headers)
-if any(str(r["회차"]) == str(round_num) and r["날짜"] == date for r in existing):
-    print(f"⚠️ 이미 저장된 회차: {date} {round_num}회차")
-else:
-    worksheet.append_row([date, round_num, left_right, line, odd_even])
-    print(f"✅ 저장 완료: {date} {round_num}회차 → {left_right}, {line}, {odd_even}")
+# ✅ 예측 후 자동 학습 실행
+subprocess.run(["python", "predict_train.py"])
