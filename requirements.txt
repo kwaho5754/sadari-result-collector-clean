@@ -7,3 +7,4 @@ pandas==2.2.2
 oauth2client
 scikit-learn==1.4.2
 joblib==1.3.2
+gunicorn==21.2.0

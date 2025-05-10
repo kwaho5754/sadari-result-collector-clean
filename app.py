@@ -6,6 +6,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import json
 import random
+import os
 
 app = Flask(__name__)
 
@@ -111,4 +112,5 @@ def predict():
         return jsonify({'오류': str(e)})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    port = int(os.environ.get('PORT', 5000))  # Render에서 환경변수 PORT 사용
+    app.run(host='0.0.0.0', port=port)
