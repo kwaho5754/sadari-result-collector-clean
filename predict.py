@@ -4,15 +4,12 @@ import gspread
 from collections import Counter
 from google.oauth2.service_account import Credentials
 
-# ✅ 시트 인증
-SPREADSHEET_ID = "1j72Y36aXDYTxsJId92DCnQLouwRgHL2BBOqI9UUDQzE"
-SHEET_NAME = "예측결과"
-
 def get_sheet_data():
     creds = Credentials.from_service_account_file("service_account.json", scopes=["https://www.googleapis.com/auth/spreadsheets"])
     client = gspread.authorize(creds)
-    sheet = client.open_by_key(SPREADSHEET_ID).worksheet(SHEET_NAME)
-    data = sheet.get_all_values()
+    sheet = client.open_by_key("1j72Y36aXDYTxsJId92DCnQLouwRgHL2BBOqI9UUDQzE")
+    worksheet = sheet.worksheet("예측결과")
+    data = worksheet.get_all_values()
     df = pd.DataFrame(data[1:], columns=data[0])
     return df.tail(1000)  # 최근 1000줄
 
@@ -34,10 +31,13 @@ def analyze_direction(combinations, reverse=False):
     # 상위/하위/중간 추출
     sorted_items = sorted(scores.items(), key=lambda x: x[1])
     top3 = []
-    if len(sorted_items) >= 3:
-        top3 = [sorted_items[0][0], sorted_items[-1][0], sorted_items[len(sorted_items)//2][0]]
-    elif len(sorted_items) > 0:
-        top3 = [x[0] for x in sorted_items[:3]]
+    seen = set()
+    for item in [sorted_items[0], sorted_items[-1], sorted_items[len(sorted_items)//2]]:
+        if item[0] not in seen:
+            top3.append(item[0])
+            seen.add(item[0])
+        if len(top3) == 3:
+            break
     return top3
 
 def run_prediction():
@@ -52,8 +52,14 @@ def run_prediction():
     except:
         last_round = "Unknown"
 
-    return {
+    result = {
         "round": last_round,
         "top3": top3_forward,
         "top3_reverse": top3_reverse
     }
+
+    # 예측 결과 저장
+    with open("predict_result.json", "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2, ensure_ascii=False)
+
+    return result
