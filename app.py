@@ -8,12 +8,9 @@ def predict_route():
     predictions = run_prediction()
     return jsonify({
         "예측 회차": predictions["round"],
-        "1위": predictions["top3"][0],
-        "2위": predictions["top3"][1],
-        "3위": predictions["top3"][2],
-        "1위(역방향)": predictions["top3_reverse"][0],
-        "2위(역방향)": predictions["top3_reverse"][1],
-        "3위(역방향)": predictions["top3_reverse"][2],
+        "1위": predictions["top3"][0] if len(predictions["top3"]) > 0 else "",
+        "2위": predictions["top3"][1] if len(predictions["top3"]) > 1 else "",
+        "3위": predictions["top3"][2] if len(predictions["top3"]) > 2 else ""
     })
 
 if __name__ == "__main__":
