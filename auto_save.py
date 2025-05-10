@@ -4,6 +4,8 @@ import requests
 import gspread
 from google.oauth2.service_account import Credentials
 
+print("✅ auto_save.py 실행됨 (main 진입 전 로그)")  # ← 추가됨
+
 def save_latest_result():
     try:
         print("🚀 auto_save.py 시작")
@@ -35,7 +37,7 @@ def save_latest_result():
         oddeven = recent['odd_even']
         print(f"📋 최근 회차: {date}, {round_number}, {position}, {ladder_count}, {oddeven}")
 
-        # 전체 값 가져오기 (안정적 방식)
+        # 전체 값 가져오기
         all_values = worksheet.get_all_values()
         headers = all_values[0]
         records = all_values[1:]
