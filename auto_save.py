@@ -19,7 +19,7 @@ def save_latest_result():
         gc = gspread.authorize(credentials)
         print("✅ 인증 완료")
 
-        # 시트 설정
+        # 시트 열기
         SPREADSHEET_ID = "1HXRIbAOEotWONqG3FVT9iub9oWNANs7orkUKjmpqfn4"
         SHEET_NAME = "예측결과"
         worksheet = gc.open_by_key(SPREADSHEET_ID).worksheet(SHEET_NAME)
@@ -38,14 +38,13 @@ def save_latest_result():
         oddeven = recent['odd_even']
         print(f"📋 최근 회차: {date}, {round_number}, {position}, {ladder_count}, {oddeven}")
 
-        # 시트 데이터 가져오기
+        # 시트 데이터 확인 및 중복 검사
         try:
             existing_data = worksheet.get_all_records()
         except Exception as e:
             headers = worksheet.row_values(1)
             raise Exception(f"시트 1행(header)에 오류가 있습니다: {headers} → {str(e)}")
 
-        # ✅ 한글 열 이름에 맞춰 중복 확인
         is_duplicate = any(
             str(row.get('날짜')) == str(date) and str(row.get('회차')) == str(round_number)
             for row in existing_data
@@ -57,6 +56,8 @@ def save_latest_result():
             new_row = [date, round_number, position, ladder_count, oddeven]
             worksheet.append_row(new_row)
             print(f"✅ 저장 완료: {new_row}")
+
+        print("🟢 저장 시도 완료 (코드 끝까지 정상 실행됨)")
 
     except Exception as e:
         print("❌ 예외 발생:", str(e))
