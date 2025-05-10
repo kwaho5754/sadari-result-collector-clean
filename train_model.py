@@ -1,64 +1,69 @@
-import json
-import os
-import gspread
 import pandas as pd
-from google.oauth2.service_account import Credentials
-from sklearn.ensemble import GradientBoostingClassifier
-from sklearn.model_selection import train_test_split
+import numpy as np
+import json
 import joblib
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.preprocessing import LabelEncoder
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
-# ✅ 인증
-SERVICE_ACCOUNT_JSON = json.loads(os.environ['SERVICE_ACCOUNT_JSON'])
-creds = Credentials.from_service_account_info(
-    SERVICE_ACCOUNT_JSON,
-    scopes=['https://www.googleapis.com/auth/spreadsheets']
-)
-client = gspread.authorize(creds)
-
-# ✅ 시트 정보
+# 설정
 SPREADSHEET_ID = '1j72Y36aXDYTxsJId92DCnQLouwRgHL2BBOqI9UUDQzE'
 SHEET_NAME = '예측결과'
-worksheet = client.open_by_key(SPREADSHEET_ID).worksheet(SHEET_NAME)
+JSON_KEY_FILE = 'service_account.json'
+FAILURE_JSON = 'save_failure_case.json'
 
-# ✅ 시트 데이터 불러오기 (최근 1000줄)
-data = worksheet.get_all_values()
-df = pd.DataFrame(data[1:], columns=data[0])
-df = df.tail(1000)  # 최근 1000줄 기준
+# 조합 인코더
+combos = ['좌삼짝', '우삼홀', '좌사홀', '우사짝']
+encoder = LabelEncoder()
+encoder.fit(combos)
 
-# ✅ 전처리
-df['조합'] = df['좌우'].str.upper() + df['줄수'] + df['홀짝'].str.upper()
-X = pd.get_dummies(df[['좌우', '줄수', '홀짝']])
-y = df['조합']
+# 시트 불러오기
+def load_sheet():
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    creds = ServiceAccountCredentials.from_json_keyfile_name(JSON_KEY_FILE, scope)
+    gc = gspread.authorize(creds)
+    sheet = gc.open_by_key(SPREADSHEET_ID).worksheet(SHEET_NAME)
+    records = sheet.get_all_records()
+    df = pd.DataFrame(records)
+    df['조합'] = df.apply(lambda row: '좌' if row['좌우'] == 'LEFT' else '우', axis=1)
+    df['조합'] += df['줄수'].map({3: '삼', 4: '사'})
+    df['조합'] += df['홀짝'].map({'ODD': '홀', 'EVEN': '짝'})
+    return df.tail(1000)
 
-# ✅ 실패 케이스 불러오기 (보정용)
-try:
-    with open('failures.json', 'r', encoding='utf-8') as f:
-        failures = json.load(f)
-except FileNotFoundError:
-    failures = []
+# 유동 블럭 학습 데이터 구성
+def create_training_data(df, block_sizes=[3,4,5]):
+    X, y = [], []
+    combo_seq = df['조합'].tolist()
+    for size in block_sizes:
+        for i in range(len(combo_seq) - size):
+            block = combo_seq[i:i+size]
+            target = combo_seq[i+size]
+            X.append(encoder.transform(block))
+            y.append(encoder.transform([target])[0])
+    return np.array(X), np.array(y)
 
-# 실패 데이터 추가 (가중치 3배)
-fail_df = pd.DataFrame([
-    {
-        '좌우': f['actual'][:5].replace('RIGHT', 'RIGHT').replace('LEFT', 'LEFT'),
-        '줄수': f['actual'][5],
-        '홀짝': f['actual'][6:],
-        '조합': f['actual']
-    }
-    for f in failures
-])
-fail_df = pd.concat([fail_df] * 3, ignore_index=True)  # 3배 가중치
+# 오답 추가
+def add_failure_data(X, y):
+    try:
+        with open(FAILURE_JSON, 'r') as f:
+            data = json.load(f)
+        for case in data:
+            pred = case['predicted']
+            actual = case['actual']
+            block = encoder.transform(pred)
+            X = np.vstack([X, block])
+            y = np.append(y, encoder.transform([actual])[0])
+    except:
+        pass
+    return X, y
 
-# ✅ 통합
-full_df = pd.concat([df[['좌우', '줄수', '홀짝', '조합']], fail_df], ignore_index=True)
-X_full = pd.get_dummies(full_df[['좌우', '줄수', '홀짝']])
-y_full = full_df['조합']
+if __name__ == "__main__":
+    df = load_sheet()
+    X, y = create_training_data(df)
+    X, y = add_failure_data(X, y)
 
-# ✅ 학습
-X_train, X_test, y_train, y_test = train_test_split(X_full, y_full, test_size=0.2, random_state=42)
-model = GradientBoostingClassifier()
-model.fit(X_train, y_train)
-
-# ✅ 모델 저장
-joblib.dump(model, 'model.pkl')
-print("✅ 모델 재학습 완료 및 저장됨.")
+    model = GradientBoostingClassifier()
+    model.fit(X, y)
+    joblib.dump(model, 'model.pkl')
+    print("✅ 모델 재학습 완료 및 저장됨.")

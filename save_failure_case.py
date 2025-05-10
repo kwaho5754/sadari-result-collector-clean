@@ -1,54 +1,72 @@
+import pandas as pd
 import json
-import gspread
-from google.oauth2.service_account import Credentials
 from datetime import datetime
+import os
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
-# ✅ 구글 시트 인증
-SERVICE_ACCOUNT_JSON = json.loads(os.environ['SERVICE_ACCOUNT_JSON'])
-creds = Credentials.from_service_account_info(
-    SERVICE_ACCOUNT_JSON,
-    scopes=['https://www.googleapis.com/auth/spreadsheets']
-)
-client = gspread.authorize(creds)
-
-# ✅ 시트 ID 및 이름
+# 설정
 SPREADSHEET_ID = '1j72Y36aXDYTxsJId92DCnQLouwRgHL2BBOqI9UUDQzE'
 SHEET_NAME = '예측결과'
+JSON_KEY_FILE = 'service_account.json'
+FAILURE_JSON = 'save_failure_case.json'
 
-# ✅ 시트에서 가장 마지막 줄 데이터 가져오기
-sheet = client.open_by_key(SPREADSHEET_ID).worksheet(SHEET_NAME)
-data = sheet.get_all_values()
-header, *rows = data
-last_row = rows[-1]
-actual = ''.join([last_row[2], last_row[3], last_row[4]]).upper()  # 예: LEFT3ODD
-
-# ✅ 예측 결과 불러오기
-with open('predict_result.json', 'r', encoding='utf-8') as f:
-    predict_data = json.load(f)
-
-predicted_list = predict_data['results']  # 예측값 3개 리스트
-predict_round = predict_data['round']
-
-# ✅ 실제값이 예측값 3개 중에 없는 경우 → 실패 기록 저장
-if actual not in predicted_list:
+# 대조 대상 예측값 (실제로는 app.py에서 전달 or 파일로 받아옴)
+def get_recent_prediction():
     try:
-        with open('failures.json', 'r', encoding='utf-8') as f:
-            failures = json.load(f)
-    except FileNotFoundError:
-        failures = []
+        with open('latest_prediction.json', 'r') as f:
+            return json.load(f)
+    except:
+        return {}
 
-    failures.append({
+# 실시간 시트에서 최근 정답 조합 가져오기
+def load_latest_actual():
+    scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+    creds = ServiceAccountCredentials.from_json_keyfile_name(JSON_KEY_FILE, scope)
+    gc = gspread.authorize(creds)
+    sheet = gc.open_by_key(SPREADSHEET_ID).worksheet(SHEET_NAME)
+    data = sheet.get_all_records()
+    df = pd.DataFrame(data)
+    
+    # 조합 생성
+    def make_combo(row):
+        lr = '좌' if row['좌우'] == 'LEFT' else '우'
+        line = '삼' if row['줄수'] == 3 else '사'
+        odd = '홀' if row['홀짝'] == 'ODD' else '짝'
+        return f"{lr}{line}{odd}"
+
+    df['조합'] = df.apply(make_combo, axis=1)
+    return df.iloc[-1]['조합']
+
+# 오답 저장
+def save_failure_case(predicted, actual):
+    if actual in predicted:
+        return  # 정답 있음 → 오답 아님
+
+    record = {
         "timestamp": str(datetime.now()),
-        "round": predict_round,
-        "actual": actual,
-        "predicted": predicted_list
-    })
+        "predicted": predicted,
+        "actual": actual
+    }
 
-    # 중복 제거
-    failures = [dict(t) for t in {tuple(d.items()) for d in failures}]
-    with open('failures.json', 'w', encoding='utf-8') as f:
-        json.dump(failures, f, indent=2, ensure_ascii=False)
+    if os.path.exists(FAILURE_JSON):
+        with open(FAILURE_JSON, 'r') as f:
+            data = json.load(f)
+    else:
+        data = []
 
-    print(f"❌ 오답 발생 → {actual} 저장됨.")
-else:
-    print(f"✅ 정답 포함 → {actual} 맞힘.")
+    data.append(record)
+
+    with open(FAILURE_JSON, 'w') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+if __name__ == "__main__":
+    prediction = get_recent_prediction()
+    if prediction:
+        predicted_list = [
+            prediction.get('1위'),
+            prediction.get('2위'),
+            prediction.get('3위')
+        ]
+        actual_combo = load_latest_actual()
+        save_failure_case(predicted_list, actual_combo)

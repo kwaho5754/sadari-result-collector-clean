@@ -1,30 +1,35 @@
-name: Auto Save Every 1 Minute
+name: Auto Predict and Train Every 5 Minutes
 
 on:
   schedule:
-    - cron: '* * * * *'  # 1분마다 실행 (UTC 기준)
-  workflow_dispatch:
+    - cron: '*/5 * * * *'  # 5분마다 실행
+  workflow_dispatch:      # 수동 실행도 가능
 
 jobs:
-  run-script:
+  auto_run:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
 
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
 
-      - name: Run auto_save.py
-        env:
-          SERVICE_ACCOUNT_JSON: ${{ secrets.SERVICE_ACCOUNT_JSON }}
-        run: |
-          echo "$SERVICE_ACCOUNT_JSON" > service_account.json
-          python auto_save.py
+    - name: Save latest prediction
+      run: |
+        python app.py > latest_prediction.json
+
+    - name: Save failure case
+      run: |
+        python save_failure_case.py
+
+    - name: Retrain model
+      run: |
+        python train_model.py
