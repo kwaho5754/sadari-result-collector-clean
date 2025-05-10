@@ -1,29 +1,31 @@
 import gspread
-from google.oauth2.service_account import Credentials
+import json
+import os
 from datetime import datetime
 
-# 🔐 구글 인증 정보
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-SERVICE_ACCOUNT_FILE = "service_account.json"
-creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
-client = gspread.authorize(creds)
+# 구글 인증: 환경변수에서 JSON을 직접 불러옴
+SERVICE_ACCOUNT_JSON = os.environ['SERVICE_ACCOUNT_JSON']
+creds = json.loads(SERVICE_ACCOUNT_JSON)
+client = gspread.service_account_from_dict(creds)
 
-# 📄 시트 정보 (코드에 직접 포함)
+# 시트 설정
 SPREADSHEET_ID = "1j72Y36aXDYTxsJId92DCnQLouwRgHL2BBOqI9UUDQzE"
 SHEET_NAME = "예측결과"
 sheet = client.open_by_key(SPREADSHEET_ID)
 worksheet = sheet.worksheet(SHEET_NAME)
 
-# 🔢 현재 회차 구하기
-existing = worksheet.get_all_records()
-last_round = existing[-1]["회차"] if existing else 0
-new_round = int(last_round) + 1
-
-# 🔮 예측 결과 (현재는 예시 값)
+# 예측값 예시 (임시값, 실제론 분석 결과로 교체 예정)
 predictions = ["RIGHT4EVEN", "LEFT3EVEN", "LEFT4ODD"]
 prediction_str = " / ".join(predictions)
 
-# 📅 날짜 포함하여 한 줄로 저장
+# 시트에서 마지막 회차 확인
+existing = worksheet.get_all_records()
+last_round = int(existing[-1]['회차']) if existing else 0
+new_round = last_round + 1
+
+# 현재 날짜
 now = datetime.now().strftime("%Y-%m-%d")
-row = [now, new_round, "", "", "", prediction_str]
+
+# 시트에 저장
+row = [now, new_round, "", "", prediction_str]
 worksheet.append_row(row)
