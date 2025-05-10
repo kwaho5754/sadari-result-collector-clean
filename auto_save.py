@@ -4,7 +4,7 @@ import requests
 import gspread
 from google.oauth2.service_account import Credentials
 
-print("✅ auto_save.py 실행됨 (main 진입 전 로그)")  # ← 추가됨
+print("✅ auto_save.py 실행됨 (main 진입 전 로그)")
 
 def save_latest_result():
     try:
@@ -19,8 +19,8 @@ def save_latest_result():
         credentials = Credentials.from_service_account_info(creds, scopes=scopes)
         client = gspread.authorize(credentials)
 
-        # 시트 연결
-        SPREADSHEET_ID = "1HXRIbAOEotWONqG3FVT9iub9oWNANs7orkUKjmpqfn4"
+        # ✅ 시트 연결 (변경된 문서 ID 적용)
+        SPREADSHEET_ID = "1j72Y36aXDYTxsJId92DCnQLouwRgHL2BBOqI9UUDQzE"
         SHEET_NAME = "예측결과"
         sheet = client.open_by_key(SPREADSHEET_ID)
         worksheet = sheet.worksheet(SHEET_NAME)
