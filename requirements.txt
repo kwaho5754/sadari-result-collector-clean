@@ -2,10 +2,12 @@ Flask
 flask_cors
 gunicorn
 gspread
-oauth2client
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
 pandas
 scikit-learn
 xgboost
-catboost
 lightgbm==4.2.0
+catboost
 requests
