@@ -1,74 +1,53 @@
-import pandas as pd
 import json
-from datetime import datetime
 import os
-import gspread
-import base64
-from google.oauth2.service_account import Credentials
+from datetime import datetime
+from helper import get_latest_actual_combo  # 시트에서 실제값 가져오기
 
-# 인증 함수
-def get_gspread_client():
-    b64_key = os.environ.get("SERVICE_ACCOUNT_BASE64")
-    if not b64_key:
-        raise Exception("환경변수 'SERVICE_ACCOUNT_BASE64'가 없습니다.")
-    key_json = base64.b64decode(b64_key).decode("utf-8")
-    creds_dict = json.loads(key_json)
-    scopes = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-    credentials = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-    return gspread.authorize(credentials)
+# 파일 경로
+PREDICTION_FILE = "latest_prediction.json"
+FAILURE_LOG_FILE = "save_failure_case.json"
 
-# 시트에서 실제 정답 불러오기
-def load_latest_actual():
-    gc = get_gspread_client()
-    sheet = gc.open_by_key("1j72Y36aXDYTxsJId92DCnQLouwRgHL2BBOqI9UUDQzE").worksheet("예측결과")
-    data = sheet.get_all_records()
-    df = pd.DataFrame(data)
+def load_latest_prediction():
+    if not os.path.exists(PREDICTION_FILE):
+        raise FileNotFoundError(f"{PREDICTION_FILE} 파일이 없습니다.")
 
-    def make_combo(row):
-        lr = '좌' if row['좌우'] == 'LEFT' else '우'
-        line = '삼' if row['줄수'] == 3 else '사'
-        odd = '홀' if row['홀짝'] == 'ODD' else '짝'
-        return f"{lr}{line}{odd}"
+    with open(PREDICTION_FILE, "r", encoding='utf-8') as f:
+        data = json.load(f)
+    return data["예측회차"], data["예측결과"]
 
-    df['조합'] = df.apply(make_combo, axis=1)
-    return df.iloc[-1]['조합']
+def save_failure(predicted, actual, round_info):
+    log = []
+    if os.path.exists(FAILURE_LOG_FILE):
+        with open(FAILURE_LOG_FILE, "r", encoding='utf-8') as f:
+            try:
+                log = json.load(f)
+            except json.JSONDecodeError:
+                log = []
 
-# 가장 최근 예측 결과 불러오기
-def get_recent_prediction():
+    log.append({
+        "날짜시간": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "예측회차": round_info,
+        "예측값": predicted,
+        "정답": actual
+    })
+
+    with open(FAILURE_LOG_FILE, "w", encoding='utf-8') as f:
+        json.dump(log, f, ensure_ascii=False, indent=2)
+
+def run_failure_check():
     try:
-        with open('latest_prediction.json', 'r') as f:
-            return json.load(f)
-    except:
-        return {}
+        round_info, predicted_list = load_latest_prediction()
+        actual = get_latest_actual_combo()
 
-# 오답 기록
-def save_failure_case(predicted, actual, output_file='save_failure_case.json'):
-    if actual in predicted:
-        return
+        if actual not in predicted_list:
+            print(f"❌ 예측 실패: 실제값 {actual} 은 예측값 {predicted_list}에 없음")
+            save_failure(predicted_list, actual, round_info)
+        else:
+            print(f"✅ 예측 성공: {actual} 이 예측값에 포함됨")
 
-    record = {
-        "timestamp": str(datetime.now()),
-        "predicted": predicted,
-        "actual": actual
-    }
+    except Exception as e:
+        print("❗ 오류 발생:", e)
 
-    if os.path.exists(output_file):
-        with open(output_file, 'r') as f:
-            data = json.load(f)
-    else:
-        data = []
-
-    data.append(record)
-    with open(output_file, 'w') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
+# 직접 실행 시
 if __name__ == "__main__":
-    prediction = get_recent_prediction()
-    if prediction:
-        predicted_list = [
-            prediction.get('1위'),
-            prediction.get('2위'),
-            prediction.get('3위')
-        ]
-        actual_combo = load_latest_actual()
-        save_failure_case(predicted_list, actual_combo)
+    run_failure_check()
